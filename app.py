@@ -1,59 +1,53 @@
 import requests
 import os
 import subprocess
+from fastapi import FastAPI
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
+
+app = FastAPI()
 
 API_KEY = os.getenv("OPENWEATHER_API_KEY")
 CITY = os.getenv("CITY", "Maryland")
 
 NAMESPACE = os.getenv("NAMESPACE", "default")
-DEPLOYMENT_NAME = os.getenv("DEPLOYMENT_NAME", "Maryland_weather_App")
+DEPLOYMENT_NAME = os.getenv("DEPLOYMENT_NAME", "your-app-deployment")
 
-URL = f"https://api.openweathermap.org/data/2.5/weather?q={Maryland}&appid={383e2dc17ef71f1534ecdd274e447aff}"
+URL = f"https://api.openweathermap.org/data/2.5/weather?q={Nguti}&appid={383e2dc17ef71f1534ecdd274e447aff}"
 
 def get_weather():
-    try:
-        response = requests.get(URL)
-        response.raise_for_status()
-        data = response.json()
-        return data["weather"][0]["main"].lower()
-    except Exception as e:
-        print("Weather fetch error:", e)
-        return None
+    response = requests.get(URL)
+    data = response.json()
+    return data["weather"][0]["main"].lower()
 
 def scale_deployment(replicas):
-    try:
-        subprocess.run(
-            [
-                "kubectl",
-                "scale",
-                "deployment",
-                DEPLOYMENT_NAME,
-                f"--replicas={replicas}",
-                "-n",
-                NAMESPACE,
-            ],
-            check=True,
-        )
-        print(f"Scaled to {replicas} replicas.")
-    except subprocess.CalledProcessError as e:
-        print("Scaling failed:", e)
+    subprocess.run(
+        [
+            "kubectl",
+            "scale",
+            "deployment",
+            DEPLOYMENT_NAME,
+            f"--replicas={replicas}",
+            "-n",
+            NAMESPACE,
+        ],
+        check=True,
+    )
 
-def main():
+@app.get("/")
+def home():
+    return {"message": "Weather Scaler Running"}
+
+@app.get("/scale")
+def scale():
     weather = get_weather()
 
-    if weather:
-        print("Current weather:", weather)
+    if "rain" in weather:
+        scale_deployment(5)
+        return {"weather": weather, "scaled_to": 5}
+    else:
+        scale_deployment(2)
+        return {"weather": weather, "scaled_to": 2}
 
-        if "rain" in weather:
-            print("Rain detected → Scaling to 5 pods")
-            scale_deployment(5)
-        else:
-            print("No rain → Scaling to 2 pods")
-            scale_deployment(2)
 
-if __name__ == "__main__":
-    main()
